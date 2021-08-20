@@ -1,0 +1,4 @@
+PUB getit() : r
+  return @thedata
+DAT
+thedata file "asm2header.rb"

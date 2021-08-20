@@ -1,0 +1,8 @@
+OBJ
+subo : "subobj_test.spin2"
+PUB main()
+repeat
+  pinl(56)
+  waitms(200)
+  pinh(56)
+  waitms(200)

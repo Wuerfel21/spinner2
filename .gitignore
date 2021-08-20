@@ -1,0 +1,7 @@
+*.elf
+*.o
+*.OBJ
+p2com.h
+*.inc
+*.binary
+spinner2.exe

@@ -1,0 +1,11 @@
+DAT
+.loop
+        drvl #56
+        waitx ##100000
+        drvh #56
+        waitx ##100000
+        jmp #.loop
+file "asm2header.rb"
+byte 0
+        long $DEADBEEF
+
