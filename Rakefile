@@ -3,12 +3,20 @@
 
 require "rake/clean"
 
-DOSBOX_COMMAND = 'C:\DOSBox-X\dosbox-x'
+def windows?
+    Gem.win_platform?
+end
+
+if windows?
+    DOSBOX_COMMAND = 'C:\DOSBox-X\dosbox-x'
+else
+    DOSBOX_COMMAND = 'flatpak run --filesystem=/home com.dosbox_x.DOSBox-X'
+end
 GCC_OPTS = "-Wall -g -funsigned-char"
 
 file "P2COM.OBJ" => ["p2com.asm","Spin2_interpreter.inc","Spin2_debugger.inc","flash_loader.inc"] do |t|
     # Remove the -silent to see why it's not working when it isn't ;/
-    sh %Q{#{DOSBOX_COMMAND} -silent -fastlaunch -nopromptfolder -c "MOUNT C #{Dir.pwd} " -c "C:\\BUILD16.BAT"}
+    sh %Q{#{DOSBOX_COMMAND} -silent -defaultconf -fastlaunch -nopromptfolder -c "MOUNT C #{Dir.pwd} " -c "C:\\BUILD16.BAT"}
 end
 
 rule ".binary" => ".spin2" do |t|
@@ -22,7 +30,7 @@ end
 
 file "p2com.elf" => "P2COM.OBJ" do |t|
     File.delete t.name if File.exist? t.name
-    sh "./objconv -felf32 -nu+ -nd #{t.source} #{t.name}"
+    sh "#{"wine " unless windows?}./objconv -felf32 #{"-nu+" if windows?} -nd #{t.source} #{t.name}"
     raise unless File.exist? t.name
 end
 
@@ -32,11 +40,11 @@ file "p2com.h" => ["p2com.asm","asm2header.rb"] do |t|
 end
 
 rule ".o" => [".c","p2com.h"] do |t|
-    sh "gcc -c -m32 -static #{GCC_OPTS} #{t.source}"
+    sh "gcc -c -m32 #{GCC_OPTS} #{t.source}"
 end
 
 file "spinner2.exe" => ["spinner2.o","p2com.elf"] do |t|
-    sh "gcc -m32 -static #{t.sources.join ' '} -o #{t.name}"
+    sh "gcc -m32 #{t.sources.join ' '} -o #{t.name}"
 end
 
 task :default => "spinner2.exe"

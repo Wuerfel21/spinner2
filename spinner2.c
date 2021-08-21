@@ -140,9 +140,9 @@ struct Spin2Compiler *compiler;
 char *load_file(const char *name,bool binary,size_t *sizeout) {
     FILE *f = fopen(name,binary ? "rb" : "r");
     if (!f) {
-        printf("Error %d opening %s, %s",errno,name,strerror(errno));
+        printf("Error %d opening %s, %s\n",errno,name,strerror(errno));
         if (sizeout) *sizeout = 0;
-        return "#error error opening file";
+        return NULL;
     }
     uint16_t bom_maybe = 0;
     fread(&bom_maybe,sizeof(uint16_t),1,f);
@@ -174,23 +174,25 @@ char *load_file(const char *name,bool binary,size_t *sizeout) {
 
 bool check_error() {
     if (compiler->error) {
-        printf("Compiler-chan's infinite wisdom:\n\t%s",compiler->error_msg);
+        printf("Compiler-chan's infinite wisdom:\n\t\"%s\"",compiler->error_msg);
         if (compiler->source_start) {
-            uint line = 0, column = 0;
+            uint line = 1, column = 1;
             char *pos = compiler->source;
             while (pos < compiler->source+compiler->source_start) {
                 column++;
                 if (*pos++ == '\r') {
-                    column = 0;
+                    column = 1;
                     line++;
                 }
             }
-            printf(" @ line %d, column %d",line,column);
-            if (compiler->source_finish) {
+            printf("\n\tin %s @ line %d, column %d",compiler->obj_title,line,column);
+            if (compiler->source_finish && compiler->source_start != compiler->source_finish) {
                 printf(", %d chars",compiler->source_finish-compiler->source_start);
             }
         }
         printf("\n");
+        if (debug_level) printf("list_lenght: %d, doc_length: %d\n",compiler->list_length,compiler->doc_length);
+        if (debug_level) printf("list_limit: %d, doc_limit: %d\n",compiler->list_limit,compiler->doc_limit);
     }
     return compiler->error;
 }
@@ -199,15 +201,17 @@ void compileRecursively(const char *fname) {
 
     printf("Opening %s\n",fname);
     char *code = load_file(fname,false,NULL);
+    if (!code) exit(-3);
     retry:
     if (debug_level) printf("Trying to compile %s...\n",fname);
     compiler->source = code;
     compiler->list = calloc(0x10000,1);
-    compiler->list_length.u = 0;
-    compiler->list_limit.u = 0xFFFF;
+    compiler->list_length = 0;
+    compiler->list_limit = 0xFFFF;
     compiler->doc = calloc(0x10000,1);
-    compiler->doc_length.u = 0;
-    compiler->doc_limit.u = 0xFFFF;
+    compiler->doc_length = 0;
+    compiler->doc_limit = 0xFFFF;
+    strcpy(compiler->obj_title,fname);
 
     P2Compile1();
     if (debug_level) printf("Compile1... OK?\n");
@@ -224,6 +228,8 @@ void compileRecursively(const char *fname) {
 
     for (uint i=0;i<needed_files;i++) {
         char *oname = &compiler->obj_filenames[i*256];
+        // Normalize filename
+        if (strlen(oname) <= 6 || strcmp(oname+strlen(oname)-6,".spin2")) strcat(oname,".spin2");
         if (debug_level) printf("Need \"%s\"...\n",oname);
         // Check if we got it already!
         named_chunk *obj = check_list(objlist,oname);
@@ -247,6 +253,7 @@ void compileRecursively(const char *fname) {
             printf("Loading FILE \"%s\"...\n",dname);
             size_t size;
             uint8_t *file = (uint8_t*)load_file(dname,true,&size);;
+            if (!file) exit(-3);
             data = add_to_list(&datlist,dname,file,size,false);
 
         }
@@ -281,6 +288,8 @@ int main(int argc, char** argv) {
                 exit(-2);
             }
             outname = argv[++i];
+        } else if (!strcmp(argv[i],"--verbose")) {
+            debug_level++;
         } else if (argv[i][0] != '-') {
             if (inname) {
                 printf("Can't handle multiple input files!!\n");
@@ -297,7 +306,7 @@ int main(int argc, char** argv) {
         exit(-2);
     }
     if (!outname) {
-        outname = malloc(strlen(inname+8));
+        outname = malloc(strlen(inname)+8);
         char *inp = inname,*onp = outname;
         while (*inp && *inp != '.') *onp++ = *inp++;
         *onp = 0;
@@ -317,5 +326,12 @@ int main(int argc, char** argv) {
     fwrite(compiler->obj,1,doEeprom ? SPIN2_OBJ_LIMIT :(compiler->size_obj+compiler->size_interpreter),outf);
     fclose(outf);
 
-
+    if (debug_level) {
+        for(uint i=0;i<compiler->doc_length;i++) {
+            char c = compiler->doc[i];
+            if (c=='\r') c='\n';
+            printf("%c",c);
+        }
+        printf("\n");
+    }
 }
