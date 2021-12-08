@@ -49,5 +49,5 @@ end
 
 task :default => "spinner2.exe"
 
-CLEAN.include %w[*.o *.inc *.OBJ p2com.h]
+CLEAN.include %w[*.o *.inc *.OBJ *.elf p2com.h]
 CLOBBER.include %w[spinner2.exe]
