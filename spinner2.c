@@ -1,3 +1,6 @@
+// Spinner2, (C)2021 by Ada Gottensträter
+// Use under terms of MIT license if you want
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
