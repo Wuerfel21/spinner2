@@ -10,7 +10,7 @@ end
 EXE_NAME = "spinner2#{".exe" if windows?}"
 BOOTSTRAP_EXE_NAME = "spinner2_bootstrap#{".exe" if windows?}"
 
-GCC_OPTS = "-Wall -g -funsigned-char"
+GCC_OPTS = "-Wall -g -funsigned-char -fno-pic"
 
 file "p2com.OBJ" => ["p2com.asm","Spin2_interpreter.inc","Spin2_debugger.inc","flash_loader.inc"] do |t|
     sh "#{"wine " unless windows?} ./TASM32.EXE #{t.source} /m /l /z /c"
@@ -50,11 +50,11 @@ rule ".o" => [".c","p2com.h"] do |t|
 end
 
 file EXE_NAME => ["spinner2.o","p2com.elf"] do |t|
-    sh "gcc -m32 #{t.sources.join ' '} -fno-PIE -o #{t.name}"
+    sh "gcc -m32 #{t.sources.join ' '} -no-PIE -o #{t.name}"
 end
 
 file BOOTSTRAP_EXE_NAME => ["spinner2.o","p2com_bootstrap.elf"] do |t|
-    sh "gcc -m32 #{t.sources.join ' '} -fno-PIE -o #{t.name}"
+    sh "gcc -m32 #{t.sources.join ' '} -no-PIE -o #{t.name}"
 end
 
 task :default => EXE_NAME
