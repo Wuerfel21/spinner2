@@ -36,7 +36,7 @@ end
 
 rule ".elf" => ".OBJ" do |t|
     File.delete t.name if File.exist? t.name
-    sh "#{"wine " unless windows?}./objconv -felf32 #{"-nu+" if windows?} -nd #{t.source} #{t.name}"
+    sh "#{"wine " unless windows?}./objconv.exe -felf32 #{"-nu+" if windows?} -nd #{t.source} #{t.name}"
     raise unless File.exist? t.name
 end
 
