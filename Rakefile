@@ -7,16 +7,13 @@ def windows?
     Gem.win_platform?
 end
 
-if windows?
-    DOSBOX_COMMAND = 'C:\DOSBox-X\dosbox-x'
-else
-    DOSBOX_COMMAND = 'flatpak run --filesystem=/home com.dosbox_x.DOSBox-X'
-end
+EXE_NAME = "spinner2#{".exe" if windows?}"
+
 GCC_OPTS = "-Wall -g -funsigned-char"
 
 file "P2COM.OBJ" => ["p2com.asm","Spin2_interpreter.inc","Spin2_debugger.inc","flash_loader.inc"] do |t|
     # Remove the -silent to see why it's not working when it isn't ;/
-    sh %Q{#{DOSBOX_COMMAND} -silent -defaultconf -fastlaunch -nopromptfolder -c "MOUNT C #{Dir.pwd} " -c "C:\\BUILD16.BAT"}
+    sh "#{"wine " unless windows?} ./TASM32.EXE #{t.name.pathmap('%n')} /m /l /z /c"
 end
 
 rule ".binary" => ".spin2" do |t|
@@ -43,11 +40,11 @@ rule ".o" => [".c","p2com.h"] do |t|
     sh "gcc -c -m32 #{GCC_OPTS} #{t.source}"
 end
 
-file "spinner2.exe" => ["spinner2.o","p2com.elf"] do |t|
+file EXE_NAME => ["spinner2.o","p2com.elf"] do |t|
     sh "gcc -m32 #{t.sources.join ' '} -o #{t.name}"
 end
 
-task :default => "spinner2.exe"
+task :default => EXE_NAME
 
 CLEAN.include %w[*.o *.inc *.OBJ *.elf p2com.h]
 CLOBBER.include %w[spinner2.exe]
