@@ -18,7 +18,7 @@ typedef struct named_chunk {
 
 named_chunk *objlist = NULL, *datlist = NULL;
 int debug_level = 0;
-bool save_docs = false;
+bool save_docs = false,save_preprocessed_source = false;
 
 uint16_t unicode_for_oem[] = {
     0xF000,0xF001,0x2190,0x2192,0x2191,0x2193,0x25C0,0x25B6,0xF008,0xF009,0xF00A,0xF00B,0xF00C,0xF00D,0x2023,0x2022,
@@ -40,7 +40,7 @@ uint16_t unicode_for_oem[] = {
 };
 
 char oem_for_unicode(int codepoint) {
-    if ((codepoint >= 0x20 && codepoint <= 0x7E)||codepoint=='\r') return codepoint;
+    if ((/*codepoint >= 0x20 &&*/ codepoint <= 0x7E)||codepoint=='\r') return codepoint;
     if (codepoint >= 0xFFFF) return '?';
     for(uint i=0;i<256;i++) if ((int)unicode_for_oem[i] == codepoint) return i;
     return '?';
@@ -223,6 +223,13 @@ void compileRecursively(const char *fname) {
     compiler->obj_stack_ptr++;
     char *code = load_file(fname,false,NULL);
     if (!code) exit(-3);
+    if (save_preprocessed_source) {
+        char docname[256];
+        snprintf(docname,256,"%s.pp",fname);
+        FILE *f = fopen(docname,"wb");
+        fwrite(code,sizeof(char),strlen(code),f);
+        fclose(f);
+    }
     retry:
     realloc_buffers();
 
@@ -323,6 +330,8 @@ int main(int argc, char** argv) {
             debug_level++;
         } else if (!strcmp(argv[i],"--document")) {
             save_docs=true;
+        } else if (!strcmp(argv[i],"--save-preprocessed-source")) {
+            save_preprocessed_source=true;
         } else if (argv[i][0] != '-') {
             if (inname) {
                 printf("Can't handle multiple input files!!\n");
