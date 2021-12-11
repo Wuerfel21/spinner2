@@ -3,13 +3,13 @@
 
 ;************************************************
 ;*						*
-;*		PBrain Compiler			*
+;*		Spin2 Compiler			*
 ;*						*
 ;*		  Version 0.1			*
 ;*						*
 ;*	     Written by Chip Gracey		*
-;*	   (C) 2020 by Parallax, Inc.		*
-;*	    Last Updated: 07/12/2020		*
+;*	 (C) 2006-2021 by Parallax, Inc.	*
+;*	    Last Updated: 10/23/2021		*
 ;*						*
 ;************************************************
 ;
@@ -48,9 +48,9 @@ ddsymbols_limit_auto	=	1000h
 ddsymbols_limit_name	=	1000h
 
 symbols_limit_auto	=	8000h		;adjust as needed to accommodate auto symbols
-symbols_limit_main	=	10000h
-symbols_limit_local	=	1000h
-symbols_limit_inline	=	1000h
+symbols_limit_main	=	40000h
+symbols_limit_local	=	8000h
+symbols_limit_inline	=	8000h
 
 symbol_limit		=	30
 pubcon_list_limit	=	10000h
@@ -72,7 +72,7 @@ msend_reg		=	1D3h
 pasm_regs		=	1D8h
 inline_locals		=	1E0h
 
-debug_size_limit	=	2C00h
+debug_size_limit	=	2B00h
 
 clkfreq_address		=	044h
 ;
@@ -1046,7 +1046,7 @@ count		bc_setup_field_rfvar
 counti		bc_setup_field_0_31,32
 
 
-count2n		bc_hubset		,54h	;hub bytecodes (step by 2)
+count2n		bc_hubset		,54h	;hub bytecodes, miscellaneous (step by 2)
 count2		bc_clkset
 count2		bc_read_clkfreq
 count2		bc_cogspin
@@ -1071,6 +1071,24 @@ count2		bc_getsec
 count2		bc_muldiv64
 count2		bc_qsin
 count2		bc_qcos
+
+count2		bc_float			;hub bytecodes, floating point
+count2		bc_trunc
+count2		bc_round
+count2		bc_nan
+count2		bc_fneg
+count2		bc_fabs
+count2		bc_flt
+count2		bc_fgt
+count2		bc_fne
+count2		bc_fe
+count2		bc_flte
+count2		bc_fgte
+count2		bc_fsqrt
+count2		bc_fadd
+count2		bc_fsub
+count2		bc_fmul
+count2		bc_fdiv
 ;
 ;
 ; Flex codes
@@ -1154,39 +1172,47 @@ flexcode	fc_getsec,	bc_getsec,	0,	1,	0,	1
 flexcode	fc_muldiv64,	bc_muldiv64,	3,	1,	0,	1
 flexcode	fc_qsin,	bc_qsin,	3,	1,	0,	1
 flexcode	fc_qcos,	bc_qcos,	3,	1,	0,	1
+
+flexcode	fc_float,	bc_float,	1,	1,	0,	1
+flexcode	fc_trunc,	bc_trunc,	1,	1,	0,	1
+flexcode	fc_round,	bc_round,	1,	1,	0,	1
+flexcode	fc_nan,		bc_nan,		1,	1,	0,	1
 ;
 ;
 ; Operators
 ;
 ;	Operator precedence (highest to lowest)
 ;
-;	0	!, -, ABS, ENCOD, DECOD, BMASK, ONES, SQRT, QLOG, QEXP		(unary)
-;	1	>>, <<, SAR, ROR, ROL, REV, ZEROX, SIGNX			(binary)
-;	2	&								(binary)
-;	3	^								(binary)
-;	4	|								(binary)
-;	5	*, /, +/, //, +//, SCA, SCAS, FRAC				(binary)
-;	6	+, -								(binary)
-;	7	#>, <#								(binary)
-;	8	ADDBITS, ADDPINS						(binary)
-;	9	<, +<, <=, +<=, ==, <>, >=, +>=, >, +>, <=>			(binary)
-;	10	!!, NOT								(unary)
-;	11	&&, AND								(binary)
-;	12	^^, XOR								(binary)
-;	13	||, OR								(binary)
-;	14	? :								(ternary)
+;	0	!, -, ABS, FABS, ENCOD, DECOD, BMASK, ONES, SQRT, FSQRT, QLOG, QEXP	(unary)
+;	1	>>, <<, SAR, ROR, ROL, REV, ZEROX, SIGNX				(binary)
+;	2	&									(binary)
+;	3	^									(binary)
+;	4	|									(binary)
+;	5	*, *., /, /., +/, //, +//, SCA, SCAS, FRAC				(binary)
+;	6	+, +., -, -.								(binary)
+;	7	#>, <#									(binary)
+;	8	ADDBITS, ADDPINS							(binary)
+;	9	<, <., +<, <=, <=., +<=, ==, ==., <>, <>., >=, >=., +>=, >, >., +>, <=>	(binary)
+;	10	!!, NOT									(unary)
+;	11	&&, AND									(binary)
+;	12	^^, XOR									(binary)
+;	13	||, OR									(binary)
+;	14	? :									(ternary)
 ;
 ;
 ;					oper		type		prec	float
 ;
 count0		op_bitnot	;	!		unary		0	-
 count		op_neg		;	-		unary		0	yes
+count		op_fneg		;	-.		unary		0	-
 count		op_abs		;	ABS		unary		0	yes
+count		op_fabs		;	FABS		unary		0	-
 count		op_encod	;	ENCOD		unary		0	-
 count		op_decod	;	DECOD		unary		0	-
 count		op_bmask	;	BMASK		unary		0	-
 count		op_ones		;	ONES		unary		0	-
 count		op_sqrt		;	SQRT		unary		0	-
+count		op_fsqrt	;	FSQRT		unary		0	-
 count		op_qlog		;	QLOG		unary		0	-
 count		op_qexp		;	QEXP		unary		0	-
 count		op_shr		;	>>		binary		1	-
@@ -1201,7 +1227,9 @@ count		op_bitand	;	&		binary		2	-
 count		op_bitxor	;	^		binary		3	-
 count		op_bitor	;	|		binary		4	-
 count		op_mul		;	*		binary		5	yes
+count		op_fmul		;	*.		binary		5	-
 count		op_div		;	/		binary		5	yes
+count		op_fdiv		;	/.		binary		5	-
 count		op_divu		;	+/		binary		5	-
 count		op_rem		;	//		binary		5	-
 count		op_remu		;	+//		binary		5	-
@@ -1209,22 +1237,30 @@ count		op_sca		;	SCA		binary		5	-
 count		op_scas		;	SCAS		binary		5	-
 count		op_frac		;	FRAC		binary		5	-
 count		op_add		;	+		binary		6	yes
+count		op_fadd		;	+.		binary		6	-
 count		op_sub		;	-		binary		6	yes
+count		op_fsub		;	-.		binary		6	-
 count		op_fge		;	#>		binary		7	yes
 count		op_fle		;	<#		binary		7	yes
 count		op_addbits	;	ADDBITS		binary		8	-
 count		op_addpins	;	ADDPINS		binary		8	-
 count		op_lt		;	<		binary		9	yes
+count		op_flt		;	<.		binary		9	-
 count		op_ltu		;	+<		binary		9	-
 count		op_lte		;	<=		binary		9	yes
+count		op_flte		;	<=.		binary		9	-
 count		op_lteu		;	+<=		binary		9	-
 count		op_e		;	==		binary		9	yes
+count		op_fe		;	==.		binary		9	-
 count		op_ne		;	<>		binary		9	yes
+count		op_fne		;	<>.		binary		9	-
 count		op_gte		;	>=		binary		9	yes
+count		op_fgte		;	>=.		binary		9	-
 count		op_gteu		;	+>=		binary		9	-
 count		op_gt		;	>		binary		9	yes
+count		op_fgt		;	>.		binary		9	-
 count		op_gtu		;	+>		binary		9	-
-count		op_ltegt	;	<=>		binary		9	-
+count		op_ltegt	;	<=>		binary		9	yes
 count		op_lognot	;	!!, NOT		unary		10	-
 count		op_logand	;	&&, AND		binary		11	-
 count		op_logxor	;	^^, XOR		binary		12	-
@@ -1234,8 +1270,8 @@ count		op_ternary	;	? (:)		ternary		14	-
 ternary_precedence	=	14
 
 
-macro		opcode	symbol,v1,v2,v3,v4,v5,v6,v7,v8,v9
-symbol		=	v1 + (v2 shl 8) + (v3 shl 16) + (v4 shl 24) + (v5 shl 25) + (v6 shl 26) + (v7 shl 27) + (v8 shl 28) + (v9 shl 29)
+macro		opcode	symbol,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10
+symbol		=	v1 + (v2 shl 8) + (v3 shl 16) + (v4 shl 24) + (v5 shl 25) + (v6 shl 26) + (v7 shl 27) + (v8 shl 28) + (v9 shl 29) + (v10 shl 30)
 		endm
 
 opc_ternary	=	1 shl 24
@@ -1244,64 +1280,78 @@ opc_unary	=	1 shl 26
 opc_assign	=	1 shl 27
 opc_float	=	1 shl 28
 opc_alias	=	1 shl 29
+opc_hubcode	=	1 shl 30
 
-;		oc		op		prec	bytecode	ternary	binary	unary	assign	float	alias
+;		oc		op		prec	bytecode	ternary	binary	unary	assign	float	alias	hubcode
 
-opcode		oc_bitnot,	op_bitnot,	0,	bc_bitnot,	0,	0,	1,	1,	0,	0	; !	
-opcode		oc_neg,		op_neg,		0,	bc_neg,		0,	0,	1,	1,	1,	0	; -	(uses op_sub symbol)
-opcode		oc_abs,		op_abs,		0,	bc_abs,		0,	0,	1,	1,	1,	0	; ABS	
-opcode		oc_encod,	op_encod,	0,	bc_encod,	0,	0,	1,	1,	0,	0	; ENCOD
-opcode		oc_decod,	op_decod,	0,	bc_decod,	0,	0,	1,	1,	0,	0	; DECOD
-opcode		oc_bmask,	op_bmask,	0,	bc_bmask,	0,	0,	1,	1,	0,	0	; BMASK
-opcode		oc_ones,	op_ones,	0,	bc_ones,	0,	0,	1,	1,	0,	0	; ONES
-opcode		oc_sqrt,	op_sqrt,	0,	bc_sqrt,	0,	0,	1,	1,	0,	0	; SQRT
-opcode		oc_qlog,	op_qlog,	0,	bc_qlog,	0,	0,	1,	1,	0,	0	; QLOG
-opcode		oc_qexp,	op_qexp,	0,	bc_qexp,	0,	0,	1,	1,	0,	0	; QEXP
-opcode		oc_shr,		op_shr,		1,	bc_shr,		0,	1,	0,	1,	0,	0	; >>
-opcode		oc_shl,		op_shl,		1,	bc_shl,		0,	1,	0,	1,	0,	0	; <<
-opcode		oc_sar,		op_sar,		1,	bc_sar,		0,	1,	0,	1,	0,	0	; SAR
-opcode		oc_ror,		op_ror,		1,	bc_ror,		0,	1,	0,	1,	0,	0	; ROR
-opcode		oc_rol,		op_rol,		1,	bc_rol,		0,	1,	0,	1,	0,	0	; ROL
-opcode		oc_rev,		op_rev,		1,	bc_rev,		0,	1,	0,	1,	0,	0	; REV
-opcode		oc_zerox,	op_zerox,	1,	bc_zerox,	0,	1,	0,	1,	0,	0	; ZEROX
-opcode		oc_signx,	op_signx,	1,	bc_signx,	0,	1,	0,	1,	0,	0	; SIGNX
-opcode		oc_bitand,	op_bitand,	2,	bc_bitand,	0,	1,	0,	1,	0,	0	; &
-opcode		oc_bitxor,	op_bitxor,	3,	bc_bitxor,	0,	1,	0,	1,	0,	0	; ^
-opcode		oc_bitor,	op_bitor,	4,	bc_bitor,	0,	1,	0,	1,	0,	0	; |
-opcode		oc_mul,		op_mul,		5,	bc_mul,		0,	1,	0,	1,	1,	0	; *
-opcode		oc_div,		op_div,		5,	bc_div,		0,	1,	0,	1,	1,	0	; /
-opcode		oc_divu,	op_divu,	5,	bc_divu,	0,	1,	0,	1,	0,	0	; +/
-opcode		oc_rem,		op_rem,		5,	bc_rem,		0,	1,	0,	1,	0,	0	; //
-opcode		oc_remu,	op_remu,	5,	bc_remu,	0,	1,	0,	1,	0,	0	; +//
-opcode		oc_sca,		op_sca,		5,	bc_sca,		0,	1,	0,	1,	0,	0	; SCA
-opcode		oc_scas,	op_scas,	5,	bc_scas,	0,	1,	0,	1,	0,	0	; SCAS
-opcode		oc_frac,	op_frac,	5,	bc_frac,	0,	1,	0,	1,	0,	0	; FRAC
-opcode		oc_add,		op_add,		6,	bc_add,		0,	1,	0,	1,	1,	0	; +
-opcode		oc_sub,		op_sub,		6,	bc_sub,		0,	1,	0,	1,	1,	0	; -
-opcode		oc_fge,		op_fge,		7,	bc_fge,		0,	1,	0,	1,	1,	0	; #>
-opcode		oc_fle,		op_fle,		7,	bc_fle,		0,	1,	0,	1,	1,	0	; <#
-opcode		oc_addbits,	op_addbits,	8,	bc_addbits,	0,	1,	0,	1,	0,	0	; ADDBITS
-opcode		oc_addpins,	op_addpins,	8,	bc_addpins,	0,	1,	0,	1,	0,	0	; ADDPINS
-opcode		oc_lt,		op_lt,		9,	bc_lt,		0,	1,	0,	0,	1,	0	; <
-opcode		oc_ltu,		op_ltu,		9,	bc_ltu,		0,	1,	0,	0,	0,	0	; +<
-opcode		oc_lte,		op_lte,		9,	bc_lte,		0,	1,	0,	0,	1,	0	; <=
-opcode		oc_lteu,	op_lteu,	9,	bc_lteu,	0,	1,	0,	0,	0,	0	; +<=
-opcode		oc_e,		op_e,		9,	bc_e,		0,	1,	0,	0,	1,	0	; ==
-opcode		oc_ne,		op_ne,		9,	bc_ne,		0,	1,	0,	0,	1,	0	; <>
-opcode		oc_gte,		op_gte,		9,	bc_gte,		0,	1,	0,	0,	1,	0	; >=
-opcode		oc_gteu,	op_gteu,	9,	bc_gteu,	0,	1,	0,	0,	0,	0	; +>=
-opcode		oc_gt,		op_gt,		9,	bc_gt,		0,	1,	0,	0,	1,	0	; >
-opcode		oc_gtu,		op_gtu,		9,	bc_gtu,		0,	1,	0,	0,	0,	0	; +>
-opcode		oc_ltegt,	op_ltegt,	9,	bc_ltegt,	0,	1,	0,	0,	1,	0	; <=>
-opcode		oc_lognot,	op_lognot,	10,	bc_lognot,	0,	0,	1,	1,	0,	1	; !!
-opcode		oc_lognot_name,	op_lognot,	10,	bc_lognot,	0,	0,	1,	1,	0,	0	; NOT
-opcode		oc_logand,	op_logand,	11,	bc_logand,	0,	1,	0,	1,	0,	1	; &&
-opcode		oc_logand_name,	op_logand,	11,	bc_logand,	0,	1,	0,	1,	0,	0	; AND
-opcode		oc_logxor,	op_logxor,	12,	bc_logxor,	0,	1,	0,	1,	0,	1	; ^^
-opcode		oc_logxor_name,	op_logxor,	12,	bc_logxor,	0,	1,	0,	1,	0,	0	; XOR
-opcode		oc_logor,	op_logor,	13,	bc_logor,	0,	1,	0,	1,	0,	1	; ||
-opcode		oc_logor_name,	op_logor,	13,	bc_logor,	0,	1,	0,	1,	0,	0	; OR
-opcode		oc_ternary,	op_ternary,	14,	0,		1,	0,	0,	1,	0,	0	; ?
+opcode		oc_bitnot,	op_bitnot,	0,	bc_bitnot,	0,	0,	1,	1,	0,	0,	0	; !	
+opcode		oc_neg,		op_neg,		0,	bc_neg,		0,	0,	1,	1,	1,	0,	0	; -	(uses op_sub symbol)
+opcode		oc_fneg,	op_fneg,	0,	bc_fneg,	0,	0,	1,	0,	1,	0,	1	; -.	(uses op_fsub symbol)
+opcode		oc_abs,		op_abs,		0,	bc_abs,		0,	0,	1,	1,	1,	0,	0	; ABS	
+opcode		oc_fabs,	op_fabs,	0,	bc_fabs,	0,	0,	1,	0,	1,	0,	1	; FABS	
+opcode		oc_encod,	op_encod,	0,	bc_encod,	0,	0,	1,	1,	0,	0,	0	; ENCOD
+opcode		oc_decod,	op_decod,	0,	bc_decod,	0,	0,	1,	1,	0,	0,	0	; DECOD
+opcode		oc_bmask,	op_bmask,	0,	bc_bmask,	0,	0,	1,	1,	0,	0,	0	; BMASK
+opcode		oc_ones,	op_ones,	0,	bc_ones,	0,	0,	1,	1,	0,	0,	0	; ONES
+opcode		oc_sqrt,	op_sqrt,	0,	bc_sqrt,	0,	0,	1,	1,	0,	0,	0	; SQRT
+opcode		oc_fsqrt,	op_fsqrt,	0,	bc_fsqrt,	0,	0,	1,	0,	1,	0,	1	; FSQRT
+opcode		oc_qlog,	op_qlog,	0,	bc_qlog,	0,	0,	1,	1,	0,	0,	0	; QLOG
+opcode		oc_qexp,	op_qexp,	0,	bc_qexp,	0,	0,	1,	1,	0,	0,	0	; QEXP
+opcode		oc_shr,		op_shr,		1,	bc_shr,		0,	1,	0,	1,	0,	0,	0	; >>
+opcode		oc_shl,		op_shl,		1,	bc_shl,		0,	1,	0,	1,	0,	0,	0	; <<
+opcode		oc_sar,		op_sar,		1,	bc_sar,		0,	1,	0,	1,	0,	0,	0	; SAR
+opcode		oc_ror,		op_ror,		1,	bc_ror,		0,	1,	0,	1,	0,	0,	0	; ROR
+opcode		oc_rol,		op_rol,		1,	bc_rol,		0,	1,	0,	1,	0,	0,	0	; ROL
+opcode		oc_rev,		op_rev,		1,	bc_rev,		0,	1,	0,	1,	0,	0,	0	; REV
+opcode		oc_zerox,	op_zerox,	1,	bc_zerox,	0,	1,	0,	1,	0,	0,	0	; ZEROX
+opcode		oc_signx,	op_signx,	1,	bc_signx,	0,	1,	0,	1,	0,	0,	0	; SIGNX
+opcode		oc_bitand,	op_bitand,	2,	bc_bitand,	0,	1,	0,	1,	0,	0,	0	; &
+opcode		oc_bitxor,	op_bitxor,	3,	bc_bitxor,	0,	1,	0,	1,	0,	0,	0	; ^
+opcode		oc_bitor,	op_bitor,	4,	bc_bitor,	0,	1,	0,	1,	0,	0,	0	; |
+opcode		oc_mul,		op_mul,		5,	bc_mul,		0,	1,	0,	1,	1,	0,	0	; *
+opcode		oc_fmul,	op_fmul,	5,	bc_fmul,	0,	1,	0,	0,	1,	0,	1	; *.
+opcode		oc_div,		op_div,		5,	bc_div,		0,	1,	0,	1,	1,	0,	0	; /
+opcode		oc_fdiv,	op_fdiv,	5,	bc_fdiv,	0,	1,	0,	0,	1,	0,	1	; /.
+opcode		oc_divu,	op_divu,	5,	bc_divu,	0,	1,	0,	1,	0,	0,	0	; +/
+opcode		oc_rem,		op_rem,		5,	bc_rem,		0,	1,	0,	1,	0,	0,	0	; //
+opcode		oc_remu,	op_remu,	5,	bc_remu,	0,	1,	0,	1,	0,	0,	0	; +//
+opcode		oc_sca,		op_sca,		5,	bc_sca,		0,	1,	0,	1,	0,	0,	0	; SCA
+opcode		oc_scas,	op_scas,	5,	bc_scas,	0,	1,	0,	1,	0,	0,	0	; SCAS
+opcode		oc_frac,	op_frac,	5,	bc_frac,	0,	1,	0,	1,	0,	0,	0	; FRAC
+opcode		oc_add,		op_add,		6,	bc_add,		0,	1,	0,	1,	1,	0,	0	; +
+opcode		oc_fadd,	op_fadd,	6,	bc_fadd,	0,	1,	0,	0,	1,	0,	1	; +.
+opcode		oc_sub,		op_sub,		6,	bc_sub,		0,	1,	0,	1,	1,	0,	0	; -
+opcode		oc_fsub,	op_fsub,	6,	bc_fsub,	0,	1,	0,	0,	1,	0,	1	; -.
+opcode		oc_fge,		op_fge,		7,	bc_fge,		0,	1,	0,	1,	1,	0,	0	; #>
+opcode		oc_fle,		op_fle,		7,	bc_fle,		0,	1,	0,	1,	1,	0,	0	; <#
+opcode		oc_addbits,	op_addbits,	8,	bc_addbits,	0,	1,	0,	1,	0,	0,	0	; ADDBITS
+opcode		oc_addpins,	op_addpins,	8,	bc_addpins,	0,	1,	0,	1,	0,	0,	0	; ADDPINS
+opcode		oc_lt,		op_lt,		9,	bc_lt,		0,	1,	0,	0,	1,	0,	0	; <
+opcode		oc_flt,		op_flt,		9,	bc_flt,		0,	1,	0,	0,	1,	0,	1	; <.
+opcode		oc_ltu,		op_ltu,		9,	bc_ltu,		0,	1,	0,	0,	0,	0,	0	; +<
+opcode		oc_lte,		op_lte,		9,	bc_lte,		0,	1,	0,	0,	1,	0,	0	; <=
+opcode		oc_flte,	op_flte,	9,	bc_flte,	0,	1,	0,	0,	1,	0,	1	; <=.
+opcode		oc_lteu,	op_lteu,	9,	bc_lteu,	0,	1,	0,	0,	0,	0,	0	; +<=
+opcode		oc_e,		op_e,		9,	bc_e,		0,	1,	0,	0,	1,	0,	0	; ==
+opcode		oc_fe,		op_fe,		9,	bc_fe,		0,	1,	0,	0,	1,	0,	1	; ==.
+opcode		oc_ne,		op_ne,		9,	bc_ne,		0,	1,	0,	0,	1,	0,	0	; <>
+opcode		oc_fne,		op_fne,		9,	bc_fne,		0,	1,	0,	0,	1,	0,	1	; <>.
+opcode		oc_gte,		op_gte,		9,	bc_gte,		0,	1,	0,	0,	1,	0,	0	; >=
+opcode		oc_fgte,	op_fgte,	9,	bc_fgte,	0,	1,	0,	0,	1,	0,	1	; >=.
+opcode		oc_gteu,	op_gteu,	9,	bc_gteu,	0,	1,	0,	0,	0,	0,	0	; +>=
+opcode		oc_gt,		op_gt,		9,	bc_gt,		0,	1,	0,	0,	1,	0,	0	; >
+opcode		oc_fgt,		op_fgt,		9,	bc_fgt,		0,	1,	0,	0,	1,	0,	1	; >.
+opcode		oc_gtu,		op_gtu,		9,	bc_gtu,		0,	1,	0,	0,	0,	0,	0	; +>
+opcode		oc_ltegt,	op_ltegt,	9,	bc_ltegt,	0,	1,	0,	0,	1,	0,	0	; <=>
+opcode		oc_lognot,	op_lognot,	10,	bc_lognot,	0,	0,	1,	1,	0,	1,	0	; !!
+opcode		oc_lognot_name,	op_lognot,	10,	bc_lognot,	0,	0,	1,	1,	0,	0,	0	; NOT
+opcode		oc_logand,	op_logand,	11,	bc_logand,	0,	1,	0,	1,	0,	1,	0	; &&
+opcode		oc_logand_name,	op_logand,	11,	bc_logand,	0,	1,	0,	1,	0,	0,	0	; AND
+opcode		oc_logxor,	op_logxor,	12,	bc_logxor,	0,	1,	0,	1,	0,	1,	0	; ^^
+opcode		oc_logxor_name,	op_logxor,	12,	bc_logxor,	0,	1,	0,	1,	0,	0,	0	; XOR
+opcode		oc_logor,	op_logor,	13,	bc_logor,	0,	1,	0,	1,	0,	1,	0	; ||
+opcode		oc_logor_name,	op_logor,	13,	bc_logor,	0,	1,	0,	1,	0,	0,	0	; OR
+opcode		oc_ternary,	op_ternary,	14,	0,		1,	0,	0,	1,	0,	0,	0	; ?
 ;
 ;
 ; Blocks
@@ -1464,7 +1514,7 @@ ddx		obj_name_start,file_limit		;object filenames source start
 ddx		obj_name_finish,file_limit		;object filenames source finish
 ddx		obj_offsets,file_limit			;object offsets
 ddx		obj_lengths,file_limit			;object lengths
-dbx		obj_data,obj_limit			;object data
+; dbx		obj_data,obj_limit			;object data W21: Don't need this...
 ddx		obj_instances,file_limit		;object instances
 dbx		obj_title,256				;object title
 
@@ -1495,7 +1545,10 @@ ddx		info_data1,info_limit			;info data1
 ddx		info_data2,info_limit			;info data2
 ddx		info_data3,info_limit			;info data3
 
-dbx		debug_pin				;debug settings
+ddx		download_baud				;download baud
+
+dbx		debug_pin_tx				;debug settings
+dbx		debug_pin_rx
 ddx		debug_baud
 ddx		debug_left
 ddx		debug_top
@@ -1805,11 +1858,20 @@ error_debugdly:	call	set_error
 error_debugpin:	call	set_error
 		db	'DEBUG_PIN can only be defined as an integer constant',0
 
+error_debugptx:	call	set_error
+		db	'DEBUG_PIN_TX can only be defined as an integer constant',0
+
+error_debugprx:	call	set_error
+		db	'DEBUG_PIN_RX can only be defined as an integer constant',0
+
 error_debugbaud:call	set_error
 		db	'DEBUG_BAUD can only be defined as an integer constant',0
 
 error_divo:	call	set_error
 		db	'Division overflow',0
+
+error_downbaud:	call	set_error
+		db	'DOWNLOAD_BAUD can only be defined as an integer constant',0
 
 error_drmbpppp:	call	set_error
 		db	'D register must be PA/PB/PTRA/PTRB',0
@@ -1996,6 +2058,9 @@ error_ewaox:	call	set_error
 
 error_ewcwzwcz:	call	set_error
 		db	'Expected WC, WZ, or WCZ',0
+
+error_fpcmbp:	call	set_error
+		db	'Floating-point constant must be positive',0
 
 error_fpcmbw:	call	set_error
 		db	'Floating-point constant must be within +/- 3.4e+38',0
@@ -2243,6 +2308,9 @@ error_tmrnr:	call	set_error
 error_tmvsid:	call	set_error
 		db	'Too much variable space is declared',0
 
+error_tocbufa:	call	set_error
+		db	'This operator cannot be used for assignment',0
+
 error_uc:	call	set_error
 		db	'Unrecognized character',0
 
@@ -2341,6 +2409,7 @@ _compile2:	mov	[error],1		;init error to true
 		call	compile_obj_symbols	;compile obj symbols
 		call	compile_con_blocks_2nd	;compile con blocks (2nd pass)
 		call	determine_clock		;determine clock settings
+		call	determine_download_baud	;determine download baud
 		call	compile_var_blocks	;compile var blocks
 		call	compile_dat_blocks	;compile dat blocks
 		call	compile_sub_blocks	;compile sub blocks
@@ -3876,7 +3945,7 @@ compile_dat:	mov	eax,[obj_ptr]		;save obj_ptr
 		inc	edx			;try next filename
 		jmp	@@filefind
 @@filefound:	mov	esi,[dat_offsets+edx*4]
-		;add	esi,offset dat_data ; W21: Don't need this...
+		;add	esi,offset dat_data ; W21: use direct pointers
 		mov	ecx,[dat_lengths+edx*4]
 		jecxz	@@filedone		;enter file bytes
 @@filebyte:	lodsb
@@ -5471,7 +5540,7 @@ compile_obj_blocks:
 		je	@@filesdone
 
 		mov	esi,[obj_offsets+ebx*4]	;get obj data address
-		;add	esi,offset obj_data ; W21: Don't need this
+		;add	esi,offset obj_data ; W21: use direct pointers
 
 		mov	eax,[obj_ptr]		;set objptr to current
 		mov	[@@objptr+ebx*4],eax
@@ -5715,7 +5784,8 @@ insert_debugger:
 		and	al,0FCh				;install _clkmode1_
 		mov	[dword obj+@@_clkmode1_],eax
 
-		mov	[debug_baud],2000000		;check for 'debug_baud' symbol, ready default value
+		mov	eax,[download_baud]		;check for 'debug_baud' symbol, ready default value
+		mov	[debug_baud],eax
 		lea	esi,[@@symbaud]
 		call	@@checksymbol
 		jc	@@nosymbaud
@@ -5755,15 +5825,32 @@ insert_debugger:
 		mov	eax,0FFFFFFFFh
 @@symdelayok:	mov	[dword obj+@@_delay_],eax
 @@nosymdelay:
-		mov	[debug_pin],62			;check for 'debug_pin' symbol
+		mov	[debug_pin_tx],62		;check for 'debug_pin' symbol (alias for 'debug_pin_tx')
 		lea	esi,[@@sympin]
 		call	@@checksymbol
 		jc	@@nosympin
 		jne	error_debugpin
 		and	bl,3Fh
 		mov	[obj+@@_txpin_],bl
-		mov	[debug_pin],bl
+		mov	[debug_pin_tx],bl
 @@nosympin:
+		lea	esi,[@@sympintx]		;check for 'debug_pin_tx' symbol
+		call	@@checksymbol
+		jc	@@nosympintx
+		jne	error_debugptx
+		and	bl,3Fh
+		mov	[obj+@@_txpin_],bl
+		mov	[debug_pin_tx],bl
+@@nosympintx:
+		mov	[debug_pin_rx],63		;check for 'debug_pin_rx' symbol
+		lea	esi,[@@sympinrx]
+		call	@@checksymbol
+		jc	@@nosympinrx
+		jne	error_debugprx
+		and	bl,3Fh
+		mov	[obj+@@_rxpin_],bl
+		mov	[debug_pin_rx],bl
+@@nosympinrx:
 		lea	esi,[@@symtimestamp]		;check for 'debug_timestamp' symbol
 		call	@@checksymbol
 		jc	@@nosymstamp
@@ -5826,7 +5913,9 @@ insert_debugger:
 
 @@symcogs:	db	'DEBUG_COGS',0
 @@symdelay:	db	'DEBUG_DELAY',0
-@@sympin:	db	'DEBUG_PIN',0
+@@sympin:	db	'DEBUG_PIN',0			;same purpose as debug_pin_tx
+@@sympintx:	db	'DEBUG_PIN_TX',0
+@@sympinrx:	db	'DEBUG_PIN_RX',0
 @@symbaud:	db	'DEBUG_BAUD',0
 @@symtimestamp:	db	'DEBUG_TIMESTAMP',0
 
@@ -5844,9 +5933,10 @@ insert_debugger:
 @@_delay_	=	0A8h
 @@_appsize_	=	0ACh
 @@_hubset_	=	0B0h
-@@_txpin_	=	118h
-@@_txmode_	=	11Ch
-@@_waitxms_	=	120h
+@@_txpin_	=	100h
+@@_rxpin_	=	104h
+@@_txmode_	=	108h
+@@_waitxms_	=	10Ch
 
 debugger:	include "Spin2_debugger.inc"
 debugger_end:
@@ -6261,6 +6351,28 @@ ddx		@@fvco
 ddx		@@fout
 ddx		@@mode
 ddx		@@freq
+;
+;
+; Determine download baud
+;
+determine_download_baud:
+
+		lea	esi,[@@symbol]		;look for DOWNLOAD_BAUD symbol
+		lea	edi,[symbol]
+		mov	ecx,symbol_limit+1
+	rep	movsb
+		call	find_symbol
+
+		cmp	al,type_undefined	;if undefined, don't affect
+		je	@@undefined
+		cmp	al,type_con		;if not integer, error
+		jne	error_downbaud
+		mov	[download_baud],ebx	;integer, set download_baud
+@@undefined:
+		ret
+
+
+@@symbol	db	'DOWNLOAD_BAUD',0
 ;
 ;
 ; Print doc data
@@ -7582,11 +7694,12 @@ resolve_exp:	mov	dl,ternary_precedence+1	;expression, set ternary precedence + 1
 		jmp	@@done
 
 @@term:		call	get_element		;term, get constant, unary, or '('
-		call	check_plus		;ignore leading '+'
+		call	check_plus		;ignore leading '+' or '+.'
 		je	@@term
 		call	check_constant
 		je	@@constant
 		call	sub_to_neg
+		call	fsub_to_fneg
 		call	check_unary
 		je	@@unary
 		cmp	al,type_left
@@ -7681,7 +7794,7 @@ check_constant:	cmp	dh,4			;trying to resolve Spin2 constant?
 		cmp	al,type_float		;FLOAT(integer exp)?
 		jne	@@notfloat
 		call	@@checkfloat
-		call	get_left		;float(integer exp), get '('
+		call	get_left		;FLOAT(integer exp), get '('
 		mov	dh,1			;set integer mode
 		call	resolve_exp		;resolve integer expression
 		mov	dh,2			;return to float mode
@@ -7889,12 +8002,15 @@ perform_unary:	xor	eax,eax			;if undefined flag, return 0
 
 @@ops		dd	offset @@bitnot
 		dd	offset @@neg
+		dd	offset @@fneg
 		dd	offset @@abs
+		dd	offset @@fabs
 		dd	offset @@encod
 		dd	offset @@decod
 		dd	offset @@bmask
 		dd	offset @@ones
 		dd	offset @@sqrt
+		dd	offset @@fsqrt
 		dd	offset @@qlog
 		dd	offset @@qexp
 		dd	offset @@shr
@@ -7909,7 +8025,9 @@ perform_unary:	xor	eax,eax			;if undefined flag, return 0
 		dd	offset @@bitxor
 		dd	offset @@bitor
 		dd	offset @@mul
+		dd	offset @@fmul
 		dd	offset @@div
+		dd	offset @@fdiv
 		dd	offset @@divu
 		dd	offset @@rem
 		dd	offset @@remu
@@ -7917,20 +8035,28 @@ perform_unary:	xor	eax,eax			;if undefined flag, return 0
 		dd	offset @@scas
 		dd	offset @@frac
 		dd	offset @@add
+		dd	offset @@fadd
 		dd	offset @@sub
+		dd	offset @@fsub
 		dd	offset @@fge
 		dd	offset @@fle
 		dd	offset @@addbits
 		dd	offset @@addpins
 		dd	offset @@lt
+		dd	offset @@flt
 		dd	offset @@ltu
 		dd	offset @@lte
+		dd	offset @@flte
 		dd	offset @@lteu
 		dd	offset @@e
+		dd	offset @@fe
 		dd	offset @@ne
+		dd	offset @@fne
 		dd	offset @@gte
+		dd	offset @@fgte
 		dd	offset @@gteu
 		dd	offset @@gt
+		dd	offset @@fgt
 		dd	offset @@gtu
 		dd	offset @@ltegt
 		dd	offset @@lognot
@@ -7943,23 +8069,23 @@ perform_unary:	xor	eax,eax			;if undefined flag, return 0
 		ret
 
 
-@@neg:		jz	@@negfp			;neg, float?
+@@neg:		jz	@@fneg			;neg, float?
 
 		neg	eax			;neg integer
 		ret
 
-@@negfp:	xor	eax,80000000h		;neg float
+@@fneg:		xor	eax,80000000h		;neg float
 		ret
 
 
-@@abs:		jz	@@absfp			;abs, float?
+@@abs:		jz	@@fabs			;abs, float?
 
 		or	eax,eax			;abs integer
 		jns	@@abs2
 		neg	eax
 @@abs2:		ret
 
-@@absfp:	and	eax,7FFFFFFFh		;abs float
+@@fabs:		and	eax,7FFFFFFFh		;abs float
 		ret
 
 
@@ -8005,6 +8131,12 @@ perform_unary:	xor	eax,eax			;if undefined flag, return 0
 		ret
 
 ddx		@@t
+
+@@fsqrt:	test	eax,80000000h		;fsqrt
+		jnz	error_fpcmbp
+		call	fp_sqrt
+		jc	error_fpo
+		ret
 
 @@qlog:		clc				;qlog
 		jmp	resolve_hyp
@@ -8056,18 +8188,18 @@ ddx		@@t
 		ret
 
 
-@@mul:		jz	@@mulfp			;mul, float?
+@@mul:		jz	@@fmul			;mul, float?
 
 		imul	ecx			;mul integer
 		ret
 
-@@mulfp:	mov	ebx,ecx			;mul float
+@@fmul:		mov	ebx,ecx			;mul float
 		call	fp_mul
 		jc	error_fpo
 		ret
 
 
-@@div:		jz	@@divfp			;div, float?
+@@div:		jz	@@fdiv			;div, float?
 
 		or	ecx,ecx			;div integer
 		jz	error_dbz
@@ -8075,7 +8207,7 @@ ddx		@@t
 		idiv	ecx
 		ret
 
-@@divfp:	mov	ebx,ecx			;div float
+@@fdiv:		mov	ebx,ecx			;div float
 		call	fp_div
 		jc	error_fpo
 		ret
@@ -8123,23 +8255,23 @@ ddx		@@t
 		ret
 
 
-@@add:		jz	@@addfp			;add, float?
+@@add:		jz	@@fadd			;add, float?
 
 		add	eax,ecx			;add integer
 		ret
 
-@@addfp:	mov	ebx,ecx			;add float
+@@fadd:		mov	ebx,ecx			;add float
 		call	fp_add
 		jc	error_fpo
 		ret
 
 
-@@sub:		jz	@@subfp			;sub, float?
+@@sub:		jz	@@fsub			;sub, float?
 
 		sub	eax,ecx			;sub integer
 		ret
 
-@@subfp:	mov	ebx,ecx			;sub float
+@@fsub:		mov	ebx,ecx			;sub float
 		call	fp_sub
 		jc	error_fpo
 		ret
@@ -8184,30 +8316,36 @@ ddx		@@t
 		ret
 
 
+@@flt:		cmp	al,al			;flt (z=1)
 @@lt:		mov	dl,001b			;lt
 		jmp	@@cmp
 
 @@ltu:		mov	dl,001b			;ltu
 		jmp	@@cmpu
 
+@@flte:		cmp	al,al			;flte (z=1)
 @@lte:		mov	dl,101b			;lte
 		jmp	@@cmp
 
 @@lteu:		mov	dl,101b			;lteu
 		jmp	@@cmpu
 
+@@fe:		cmp	al,al			;fe (z=1)
 @@e:		mov	dl,100b			;e
 		jmp	@@cmp
 
+@@fne:		cmp	al,al			;fne (z=1)
 @@ne:		mov	dl,011b			;ne
 		jmp	@@cmp
 
+@@fgte:		cmp	al,al			;fgte (z=1)
 @@gte:		mov	dl,110b			;gte
 		jmp	@@cmp
 
 @@gteu:		mov	dl,110b			;gteu
 		jmp	@@cmpu
 
+@@fgt:		cmp	al,al			;fgt (z=1)
 @@gt:		mov	dl,010b			;gt
 		jmp	@@cmp
 
@@ -8240,7 +8378,7 @@ ddx		@@t
 		jmp	@@cmp3
 
 
-@@cmp:		jz	@@cmpfp			;cmp, float?
+@@cmp:		jz	@@fcmp			;cmp, float?
 
 		cmp	eax,ecx			;cmp integer
 @@cmp2:		mov	al,001b			;less than
@@ -8252,7 +8390,7 @@ ddx		@@t
 		movzx	eax,dl
 		jmp	@@log
 
-@@cmpfp:	mov	ebx,ecx			;cmp float
+@@fcmp:		mov	ebx,ecx			;cmp float
 		call	fp_cmp
 		jc	error_fpo
 		jmp	@@cmp2
@@ -8755,6 +8893,48 @@ fp_div:		push	edx
 		pop	esi
 		pop	edx
 		ret
+;
+;
+; Floating-point square-root (FSQRT(fp eax) -> fp eax)
+; c=1 if overflow
+;
+fp_sqrt:	push	ecx
+		push	edx
+		push	esi
+		push	edi
+
+		call	fp_unpack_eax		;unpack float
+
+		sub	esi,127			;unbias exponent
+		sar	esi,1			;halve root exponent
+		jc	@@odd			;if exponent was even, shift mantissa down
+		shr	eax,1
+@@odd:		add	esi,127-1		;bias and decrement exponent to account for bit29-justification
+
+		mov	[@@sqr],eax		;sqrt
+		mov	ebx,80000000h
+		xor	ecx,ecx
+@@sqrt2:	or	ecx,ebx
+		mov	eax,ecx
+		mul	eax
+		cmp	edx,[@@sqr]
+		jbe	@@sqrt3
+		xor	ecx,ebx
+@@sqrt3:	shr	ebx,1
+		jnc	@@sqrt2
+		mov	eax,ecx
+
+		xor	edx,edx			;clear sign in dl.0
+		call	fp_pack_eax		;pack float, c=1 if overflow
+
+		pop	edi
+		pop	esi
+		pop	edx
+		pop	ecx
+		ret
+
+
+ddx		@@sqr
 ;
 ;
 ; Convert integer to floating-point (int eax -> fp eax)
@@ -9903,6 +10083,7 @@ compile_inst:
 		je	compile_var_pre
 
 		call	sub_to_neg		;unary var assignment?
+		call	fsub_to_fneg
 		call	check_unary
 		je	ci_unary
 
@@ -9957,10 +10138,10 @@ compile_inst:
 
 		call	check_binary		;var binary op assign (w/push)?
 		jne	@@notbin
-		call	check_assign		;verify that assignment is allowed
-		jne	@@notbin
 		call	check_equal		;check for '=' after binary op
 		jne	@@notbin
+		call	check_assign		;verify that assignment is allowed
+		jne	error_tocbufa
 		shr	ebx,16
 		sub	bl,bc_lognot-bc_lognot_write
 		mov	dh,bl
@@ -10237,7 +10418,9 @@ compile_var_multi:
 ;
 ; Compile instruction - unary var assignment
 ;
-ci_unary:	call	get_equal		;get '='
+ci_unary:	call	check_assign		;verify that assignment is allowed
+		jne	error_tocbufa
+		call	get_equal		;get '='
 		shr	ebx,16			;compile var assignment
 		mov	dh,bl
 		sub	dh,bc_lognot-bc_lognot_write
@@ -10265,8 +10448,14 @@ ci_unary:	call	get_equal		;get '='
 ; ______10	               ', ' + data
 ; ______11	                      data
 ;
-; 001000__	ZSTR(ptr)			z-string, in quotes for show
-; 001100__	LSTR(ptr,len)			length-string, in quotes for show
+; 001000__	<unused>
+; 001001__	ZSTR(ptr)			z-string, in quotes for show
+; 001010__	<unused>
+; 001011__	FDEC(val)			floating-point
+; 001100__	FDEC_REG_ARRAY(ptr,len)		floating-point
+; 001101__	LSTR(ptr,len)			length-string, in quotes for show
+; 001110__	<unused>
+; 001111__	FDEC_ARRAY(ptr,len)		floating-point
 ;
 ; 010000__	UDEC(val)			unsigned decimal
 ; 010001__	UDEC_BYTE(val)
@@ -10323,7 +10512,7 @@ ci_unary:	call	get_equal		;get '='
 ; 111111__	SBIN_LONG_ARRAY(ptr,len)
 ;
 ;
-count0		dc_end		;lower DEBUG commands
+count0		dc_end		'lower DEBUG commands
 count		dc_asm
 count		dc_if
 count		dc_ifnot
@@ -11121,10 +11310,11 @@ compile_exp:	push	eax
 		jmp	@@done
 
 @@term:		call	get_element		;term, get '@@', unary, '(', or term
-		call	check_plus		;ignore leading '+'
+		call	check_plus		;ignore leading '+' or '+.'
 		je	@@term
 		call	negcon_to_con		;convert -constant to constant
 		call	sub_to_neg		;convert subtract to negate
+		call	fsub_to_fneg		;convert floating-point subtract to negate
 		cmp	al,type_atat
 		je	@@atat
 		call	check_unary
@@ -11142,6 +11332,8 @@ compile_exp:	push	eax
 
 @@unary:	call	check_equal		;unary, check for var assignment
 		jne	@@unarynormal
+		call	check_assign		;verify that assignment is allowed
+		jne	error_tocbufa
 		shr	ebx,16
 		sub	bl,bc_lognot-bc_lognot_write_push
 		mov	dh,bl
@@ -11166,7 +11358,11 @@ compile_exp:	push	eax
 		ret
 
 
-@@enterop:	mov	eax,ebx			;math bc_??? in ebx[23:16]
+@@enterop:	test	ebx,opc_hubcode		;enter operator, check if hubcode
+		jz	@@enterop2
+		mov	al,bc_hub_bytecode
+		call	enter_obj
+@@enterop2:	mov	eax,ebx			;math bc_??? in ebx[23:16]
 		shr	eax,16
 		jmp	enter_obj
 ;
@@ -11183,14 +11379,20 @@ compile_term:	cmp	al,type_con		;constant integer?
 		je	ct_constr
 
 		cmp	al,type_float		;FLOAT?
-		je	ct_frt
-
+		jne	@@notfloat
+		mov	ebx,fc_float
+		jmp	compile_flex
+@@notfloat:
 		cmp	al,type_round		;ROUND?
-		je	ct_frt
-
+		jne	@@notround
+		mov	ebx,fc_round
+		jmp	compile_flex
+@@notround:
 		cmp	al,type_trunc		;TRUNC?
-		je	ct_frt
-
+		jne	@@nottrunc
+		mov	ebx,fc_trunc
+		jmp	compile_flex
+@@nottrunc:
 		mov	ch,0			;(no result required, since 'abort' provides result)
 		mov	cl,bc_drop_trap_push	;(drop anchor - trap, push)
 		cmp	al,type_back		;\obj{[]}.method({param,...}), \method({param,...}), \var({param,...}){:results} ?
@@ -11283,8 +11485,8 @@ compile_term:	cmp	al,type_con		;constant integer?
 
 		call	check_binary		;var binary op assign (w/push)?
 		jne	@@notbin
-		call	check_assign		;verify that assignment is allowed
-		jne	@@notbin
+		test	ebx,opc_assign		;verify that assignment is allowed
+		jz	@@notbin
 		call	check_equal		;check for '=' after binary op
 		jne	@@notbin
 		shr	ebx,16
@@ -11337,10 +11539,10 @@ ct_constr:	call	get_left		;get '('
 ;
 ; Compile term - FLOAT(integer) / ROUND(float) / TRUNC(float)
 ;
-ct_frt:		call	back_element		;back up to FLOAT/ROUND/TRUNC
-
-		call	get_value		;get FLOAT/ROUND/TRUNC expression
-		jmp	compile_constant	;compile constant
+;ct_frt:		call	back_element		;back up to FLOAT/ROUND/TRUNC
+;
+;		call	get_value		;get FLOAT/ROUND/TRUNC expression
+;TESTT		jmp	compile_constant	;compile constant
 ;
 ;
 ; Compile term - \obj{[]}.method({param,...}), \method({param,...}), \var({param,...}){:results}
@@ -12092,6 +12294,10 @@ check_float:	test	ebx,opc_float
 
 check_alias:	test	ebx,opc_alias
 		jnz	check_tbu
+		jmp	check_tbu_no
+
+check_hubcode:	test	ebx,opc_hubcode
+		jnz	check_tbu
 
 check_tbu_no:	cmp	al,0			;make z=0
 		jnz	@@ret
@@ -12430,14 +12636,17 @@ skip_index:	call	get_leftb		;get '['
 ;
 ;
 ; Check for plus
-; z=1 if '+'
+; z=1 if '+' or '+.'
 ;
 check_plus:	cmp	al,type_op
-		jne	@@not
+		jne	@@exit
 
-		cmp	bl,op_add
+		cmp	bl,op_add		;'+' ?
+		je	@@exit
 
-@@not:		ret
+		cmp	bl,op_fadd		;'+.' ?
+
+@@exit:		ret
 ;
 ;
 ; Convert -constant to constant
@@ -12485,6 +12694,20 @@ sub_to_neg:	cmp	al,type_op
 		jne	@@exit
 
 		mov	ebx,oc_neg
+
+@@exit:		ret
+;
+;
+; Convert op_fsub to op_fneg
+; z=1 if converted
+;
+fsub_to_fneg:	cmp	al,type_op
+		jne	@@exit
+
+		cmp	bl,op_fsub
+		jne	@@exit
+
+		mov	ebx,oc_fneg
 
 @@exit:		ret
 ;
@@ -13668,7 +13891,8 @@ _disassemble:	lea	edi,[disassembler_string]	;edi points to string
 		shr	eax,32-4
 @@nop:		mov	ah,12
 		mul	ah
-		lea	esi,[da_cond+eax]
+		lea	esi,[da_cond]
+		add	esi,eax
 		mov	ecx,12
 	rep	movsb
 
@@ -14364,7 +14588,7 @@ da_addr:	mov	[byte edi],'$'	;print '$'
 da_hex:		shl	cl,2		;get first nibble into position
 		ror	eax,cl
 		shr	cl,2
-		and ecx,255 ; W21 fix memory corruption
+		and ecx,255
 
 @@digit:	rol	eax,4		;print hex digits
 		push	eax
@@ -14996,6 +15220,8 @@ count	dd_key_set			;SET
 count	dd_key_signed			;SIGNED
 count	dd_key_size			;SIZE
 count	dd_key_spacing			;SPACING
+count	dd_key_sprite			;SPRITE
+count	dd_key_spritedef		;SPRITEDEF
 count	dd_key_text			;TEXT
 count	dd_key_textangle		;TEXTANGLE
 count	dd_key_textsize			;TEXTSIZE
@@ -15097,6 +15323,8 @@ debug_symbols:
 	sym	dd_key,	dd_key_signed,			'SIGNED'
 	sym	dd_key,	dd_key_size,			'SIZE'
 	sym	dd_key,	dd_key_spacing,			'SPACING'
+	sym	dd_key, dd_key_sprite,			'SPRITE'
+	sym	dd_key, dd_key_spritedef,		'SPRITEDEF'
 	sym	dd_key,	dd_key_text,			'TEXT'
 	sym	dd_key,	dd_key_textangle,		'TEXTANGLE'
 	sym	dd_key,	dd_key_textsize,		'TEXTSIZE'
@@ -15892,6 +16120,11 @@ find_symbol_s3:	syms	'+//',	type_op,	oc_remu
 		syms	'+>=',	type_op,	oc_gteu
 		syms	'<=>',	type_op,	oc_ltegt
 
+		syms	'<>.',	type_op,	oc_fne
+		syms	'==.',	type_op,	oc_fe
+		syms	'<=.',	type_op,	oc_flte
+		syms	'>=.',	type_op,	oc_fgte
+
 		ret
 ;
 ;
@@ -15921,6 +16154,14 @@ find_symbol_s2:	syms	':=',	type_assign,	0
 		syms	'&&',	type_op,	oc_logand
 		syms	'^^',	type_op,	oc_logxor
 		syms	'||',	type_op,	oc_logor
+
+;		syms	'-.',	type_op,	oc_fneg		(uses oc_fsub symbol)
+		syms	'<.',	type_op,	oc_flt
+		syms	'>.',	type_op,	oc_fgt
+		syms	'+.',	type_op,	oc_fadd
+		syms	'-.',	type_op,	oc_fsub
+		syms	'*.',	type_op,	oc_fmul
+		syms	'/.',	type_op,	oc_fdiv
 
 		ret
 ;
@@ -15962,11 +16203,13 @@ find_symbol_s1:	syms	'(',	type_left,	0
 automatic_symbols:
 
 	sym	type_op,		oc_abs,		'ABS'		;(also asm instruction)
+	sym	type_op,		oc_fabs,	'FABS'
 	sym	type_op,		oc_encod,	'ENCOD'		;(also asm instruction)
 	sym	type_op,		oc_decod,	'DECOD'		;(also asm instruction)
 	sym	type_op,		oc_bmask,	'BMASK'		;(also asm instruction)
 	sym	type_op,		oc_ones,	'ONES'		;(also asm instruction)
 	sym	type_op,		oc_sqrt,	'SQRT'
+	sym	type_op,		oc_fsqrt,	'FSQRT'
 	sym	type_op,		oc_qlog,	'QLOG'		;(also asm instruction)
 	sym	type_op,		oc_qexp,	'QEXP'		;(also asm instruction)
 	sym	type_op,		oc_sar,		'SAR'		;(also asm instruction)
@@ -16042,10 +16285,16 @@ automatic_symbols:
 
 	sym	type_debug_cmd,		dc_dly,		'DLY'		;debug commands
 
-	sym	type_debug_cmd,		00100000b,	'ZSTR'
-	sym	type_debug_cmd,		00100010b,	'ZSTR_'
-	sym	type_debug_cmd,		00110000b,	'LSTR'
-	sym	type_debug_cmd,		00110010b,	'LSTR_'
+	sym	type_debug_cmd,		00100100b,	'ZSTR'
+	sym	type_debug_cmd,		00100110b,	'ZSTR_'
+	sym	type_debug_cmd,		00101100b,	'FDEC'
+	sym	type_debug_cmd,		00101110b,	'FDEC_'
+	sym	type_debug_cmd,		00110000b,	'FDEC_REG_ARRAY'
+	sym	type_debug_cmd,		00110010b,	'FDEC_REG_ARRAY_'
+	sym	type_debug_cmd,		00110100b,	'LSTR'
+	sym	type_debug_cmd,		00110110b,	'LSTR_'
+	sym	type_debug_cmd,		00111100b,	'FDEC_ARRAY'
+	sym	type_debug_cmd,		00111110b,	'FDEC_ARRAY_'
 
 	sym	type_debug_cmd,		01000000b,	'UDEC'
 	sym	type_debug_cmd,		01000010b,	'UDEC_'
@@ -16227,6 +16476,8 @@ automatic_symbols:
 	sym	type_i_flex,		fc_muldiv64,	'MULDIV64'
 	sym	type_i_flex,		fc_qsin,	'QSIN'
 	sym	type_i_flex,		fc_qcos,	'QCOS'
+
+	sym	type_i_flex,		fc_nan,		'NAN'
 
 
 	sym	type_asm_dir,		dir_orgh,	'ORGH'		;assembly directives
