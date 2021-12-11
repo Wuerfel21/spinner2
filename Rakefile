@@ -50,11 +50,11 @@ rule ".o" => [".c","p2com.h"] do |t|
 end
 
 file EXE_NAME => ["spinner2.o","p2com.elf"] do |t|
-    sh "gcc -m32 #{t.sources.join ' '} -no-PIE -o #{t.name}"
+    sh "gcc -m32 #{t.sources.join ' '} -fno-PIE -o #{t.name}"
 end
 
 file BOOTSTRAP_EXE_NAME => ["spinner2.o","p2com_bootstrap.elf"] do |t|
-    sh "gcc -m32 #{t.sources.join ' '} -no-PIE -o #{t.name}"
+    sh "gcc -m32 #{t.sources.join ' '} -fno-PIE -o #{t.name}"
 end
 
 task :default => EXE_NAME
