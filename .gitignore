@@ -2,6 +2,7 @@
 *.o
 *.OBJ
 p2com.h
+p2com_bootstrap.asm
 *.inc
 *.binary
 *.LST
