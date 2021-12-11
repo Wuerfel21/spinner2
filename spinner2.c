@@ -18,6 +18,7 @@ typedef struct named_chunk {
 
 named_chunk *objlist = NULL, *datlist = NULL;
 int debug_level = 0;
+bool save_docs = false;
 
 uint16_t unicode_for_oem[] = {
     0xF000,0xF001,0x2190,0x2192,0x2191,0x2193,0x25C0,0x25B6,0xF008,0xF009,0xF00A,0xF00B,0xF00C,0xF00D,0x2023,0x2022,
@@ -191,26 +192,34 @@ bool check_error() {
             }
         }
         printf("\n");
-        if (debug_level) printf("list_lenght: %d, doc_length: %d\n",compiler->list_length,compiler->doc_length);
+        if (debug_level) printf("list_length: %d, doc_length: %d\n",compiler->list_length,compiler->doc_length);
         if (debug_level) printf("list_limit: %d, doc_limit: %d\n",compiler->list_limit,compiler->doc_limit);
     }
     return compiler->error;
 }
 
+static void realloc_buffers() {
+    if (compiler->list) free(compiler->list);
+    compiler->list = calloc(0x1000000,1);
+    compiler->list_length = 0;
+    compiler->list_limit = 0xFFFFFF;
+    if (compiler->doc) free(compiler->doc);
+    compiler->doc = calloc(0x1000000,1);
+    compiler->doc_length = 0;
+    compiler->doc_limit = 0xFFFFFF;
+}
+
 void compileRecursively(const char *fname) {
 
     printf("Opening %s\n",fname);
+    compiler->obj_stack_ptr++;
     char *code = load_file(fname,false,NULL);
     if (!code) exit(-3);
     retry:
+    realloc_buffers();
+
     if (debug_level) printf("Trying to compile %s...\n",fname);
     compiler->source = code;
-    compiler->list = calloc(0x10000,1);
-    compiler->list_length = 0;
-    compiler->list_limit = 0xFFFF;
-    compiler->doc = calloc(0x10000,1);
-    compiler->doc_length = 0;
-    compiler->doc_limit = 0xFFFF;
     strcpy(compiler->obj_title,fname);
 
     P2Compile1();
@@ -266,6 +275,21 @@ void compileRecursively(const char *fname) {
     if (check_error()) exit(-1);
 
     add_to_list(&objlist,fname,compiler->obj,compiler->obj_ptr,true);
+    compiler->obj_stack_ptr--;
+    if (save_docs) {
+        char docname[256];
+        snprintf(docname,256,"%s.doc.txt",fname);
+        FILE *docfile = fopen(docname,"wb");
+        static const uint16_t bom = 0xFEFF;
+        fwrite(&bom,2,1,docfile);
+        for(uint i=0;i<compiler->doc_length;i++) {
+            char c = compiler->doc[i];
+            if (c=='\r') c='\n';
+            uint16_t codepoint = unicode_for_oem[(uint8_t)c];
+            fwrite(&codepoint,2,1,docfile);
+        }
+        fclose(docfile);
+    }
 }
 
 
@@ -290,6 +314,8 @@ int main(int argc, char** argv) {
             outname = argv[++i];
         } else if (!strcmp(argv[i],"--verbose")) {
             debug_level++;
+        } else if (!strcmp(argv[i],"--document")) {
+            save_docs=true;
         } else if (argv[i][0] != '-') {
             if (inname) {
                 printf("Can't handle multiple input files!!\n");
@@ -313,6 +339,7 @@ int main(int argc, char** argv) {
         strcat(outname,doEeprom?".eeprom":".binary");
     }
 
+    compiler->obj_stack_ptr = -1;
     compileRecursively(inname);
 
     if (!compiler->pasm_mode) {
@@ -325,13 +352,4 @@ int main(int argc, char** argv) {
     FILE *outf = fopen(outname,"wb");
     fwrite(compiler->obj,1,doEeprom ? SPIN2_OBJ_LIMIT :(compiler->size_obj+compiler->size_interpreter),outf);
     fclose(outf);
-
-    if (debug_level) {
-        for(uint i=0;i<compiler->doc_length;i++) {
-            char c = compiler->doc[i];
-            if (c=='\r') c='\n';
-            printf("%c",c);
-        }
-        printf("\n");
-    }
 }

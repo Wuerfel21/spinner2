@@ -30,6 +30,7 @@ TYPEMAP = {
     "size_flashloader" => "uint32_t",
     "obj_ptr" => "uint32_t", # Not actually a pointer
     "obj_title" => "char",
+    "obj_stack_ptr" => "int32_t", # Also not actually a pointer
 
     "obj_filenames" => "char",
     "dat_filenames" => "char",
