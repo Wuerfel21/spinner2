@@ -139,7 +139,7 @@ struct Spin2Compiler *compiler;
 
 
 char *load_file(const char *name,bool binary,size_t *sizeout) {
-    FILE *f = fopen(name,binary ? "rb" : "r");
+    FILE *f = fopen(name,"rb");
     if (!f) {
         printf("Error %d opening %s, %s\n",errno,name,strerror(errno));
         if (sizeout) *sizeout = 0;
@@ -159,9 +159,17 @@ char *load_file(const char *name,bool binary,size_t *sizeout) {
         bool do_utf16 = bom_maybe == 0xFEFF;
         if (do_utf16) read_codepoint(f,true); // eat BOM
         char *pos = buffer;
+        bool gotcr = false;
         for (;;) {
             int c = read_codepoint(f,do_utf16);
             if (c==EOF) break;
+            if (c=='\r' && !gotcr) {
+                gotcr = true;
+                continue;
+            } else if (gotcr) {
+                if (c != '\n') *pos++='\n';
+                gotcr = false;
+            }
             if (c=='\n') c='\r';
             //printf("%c - %04X\n",c,c);
             *pos++=oem_for_unicode(c);
@@ -284,8 +292,7 @@ void compileRecursively(const char *fname) {
         fwrite(&bom,2,1,docfile);
         for(uint i=0;i<compiler->doc_length;i++) {
             char c = compiler->doc[i];
-            if (c=='\r') c='\n';
-            uint16_t codepoint = unicode_for_oem[(uint8_t)c];
+            uint16_t codepoint = c=='\r' ? '\n' : unicode_for_oem[(uint8_t)c];
             fwrite(&codepoint,2,1,docfile);
         }
         fclose(docfile);
