@@ -7,3 +7,4 @@ p2com_bootstrap.asm
 *.binary
 *.LST
 spinner2.exe
+spinner2_bootstrap.exe
