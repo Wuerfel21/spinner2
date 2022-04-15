@@ -262,7 +262,7 @@ void compileRecursively(const char *fname) {
         named_chunk *obj = check_list(objlist,oname);
         if (!obj) {
             // Don't have it, compile it and try again
-            compileRecursively(oname);
+            compileRecursively(copy_string(oname));
             compilerDirty = true;
         } else if (!compilerDirty) {
             compiler->obj_offsets[i] = (uint8_t*)obj->data;
